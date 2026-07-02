@@ -1,0 +1,27 @@
+name: adguard-srs
+on:
+  schedule: [{ cron: "0 4 * * *" }]   # каждый день 04:00 UTC
+  workflow_dispatch:                   # + кнопка "запустить вручную"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: get sing-box
+        run: |
+          VER=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
+          curl -sSL "https://github.com/SagerNet/sing-box/releases/download/v$VER/sing-box-$VER-linux-amd64.tar.gz" | tar xz
+          sudo mv sing-box-*/sing-box /usr/local/bin/sing-box
+      - name: build adguard.srs
+        run: |
+          curl -sSL https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt -o filter.txt
+          sing-box rule-set convert --type adguard --output adguard.srs filter.txt
+      - name: commit
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add adguard.srs
+          git commit -m "update $(date -u +%F)" || exit 0
+          git push
